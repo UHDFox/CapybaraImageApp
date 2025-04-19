@@ -1,10 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace CapybaraImageApp.Models;
 
 public enum ImageOperation
 {
-    Sum, 
+    Sum,
     Multiply,
     Average,
     Min,
@@ -13,5 +11,5 @@ public enum ImageOperation
     Median,
     Gaussian,
     HighPassFilter,
-    LowPassFilter,
+    LowPassFilter
 }
