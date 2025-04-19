@@ -11,5 +11,7 @@ public enum ImageOperation
     Max,
     Mask,
     Median,
-    Gaussian
+    Gaussian,
+    HighPassFilter,
+    LowPassFilter,
 }
