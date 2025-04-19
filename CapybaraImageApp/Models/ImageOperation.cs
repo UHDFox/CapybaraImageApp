@@ -9,5 +9,7 @@ public enum ImageOperation
     Average,
     Min,
     Max,
-    Mask
+    Mask,
+    Median,
+    Gaussian
 }

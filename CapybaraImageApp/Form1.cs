@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using CapybaraImageApp.Models;
 
@@ -18,6 +19,11 @@ namespace CapybaraImageApp
         private TextBox txtPointX;
         private TextBox txtPointY;
         private Button btnAddPoint;
+        private Button btnBinarize;
+        private NumericUpDown numWindowSize;
+        private NumericUpDown numThreshold;
+        private NumericUpDown numSigma;
+        private NumericUpDown numKernelSize;
         
         
         public Form1()
@@ -66,6 +72,9 @@ namespace CapybaraImageApp
             comboBoxOperations.Location = new System.Drawing.Point(500, 140);
             comboBoxOperations.Size = new System.Drawing.Size(180, 25);
             Controls.Add(comboBoxOperations);
+            comboBoxOperations.Items.AddRange(Enum.GetNames(typeof(ImageOperation)));
+            comboBoxOperations.SelectedIndex = 0;
+
 
             // --- Кнопка "Добавить изображение" ---
             btnAddImage = new System.Windows.Forms.Button();
@@ -107,6 +116,56 @@ namespace CapybaraImageApp
             btnAddPoint.Text = "Добавить точку";
             btnAddPoint.Click += BtnAddPoint_Click;
             Controls.Add(btnAddPoint);
+            
+            // --- Кнопка "Бинаризация" ---
+            btnBinarize = new System.Windows.Forms.Button();
+            btnBinarize.Location = new System.Drawing.Point(500, 340);
+            btnBinarize.Size = new System.Drawing.Size(180, 30);
+            btnBinarize.Text = "Бинаризация";
+            btnBinarize.UseVisualStyleBackColor = true;
+            btnBinarize.Click += BtnBinarize_Click;
+            Controls.Add(btnBinarize);
+            
+            numWindowSize = new NumericUpDown();
+            numWindowSize.Location = new System.Drawing.Point(500, 380);
+            numWindowSize.Size = new System.Drawing.Size(80, 25);
+            numWindowSize.Minimum = 1;
+            numWindowSize.Maximum = 100;
+            numWindowSize.Value = 8;  // По умолчанию 8%
+            Controls.Add(numWindowSize);
+
+            // Добавляем NumericUpDown для порога
+            numThreshold = new NumericUpDown();
+            numThreshold.Location = new System.Drawing.Point(600, 380);
+            numThreshold.Size = new System.Drawing.Size(80, 25);
+            numThreshold.DecimalPlaces = 2;
+            numThreshold.Minimum = 0.1M;
+            numThreshold.Maximum = 1.0M;
+            numThreshold.Increment = 0.05M;
+            numThreshold.Value = 0.85M;  // По умолчанию 85%
+            Controls.Add(numThreshold);
+            
+            // --- NumericUpDown для Sigma (Гаусс) ---
+            numSigma = new NumericUpDown();
+            numSigma.Location = new Point(500, 420);
+            numSigma.Size = new Size(80, 25);
+            numSigma.DecimalPlaces = 2;
+            numSigma.Minimum = 0.1M;
+            numSigma.Maximum = 10.0M;
+            numSigma.Increment = 0.1M;
+            numSigma.Value = 3.0M;  // Стандартное значение
+            Controls.Add(numSigma);
+
+// --- NumericUpDown для KernelSize (Гаусс) ---
+            numKernelSize = new NumericUpDown();
+            numKernelSize.Location = new Point(600, 420);
+            numKernelSize.Size = new Size(80, 25);
+            numKernelSize.Minimum = 3;
+            numKernelSize.Maximum = 99;
+            numKernelSize.Increment = 2;
+            numKernelSize.Value = 13;  // Стандартное значение
+            Controls.Add(numKernelSize);
+
         }
 
         private System.Windows.Forms.Button btnSave;
@@ -194,12 +253,21 @@ namespace CapybaraImageApp
 
         }
 
-        private Bitmap ProcessImages(Bitmap img1, Bitmap img2, ImageOperation operation)
-        {
-            int width = Math.Max(img1.Width, img2.Width);
-            int height = Math.Max(img1.Height, img2.Height);
-            Bitmap result = new Bitmap(width, height);
+private Bitmap ProcessImages(Bitmap img1, Bitmap img2, ImageOperation operation)
+{
+    int width = Math.Max(img1.Width, img2.Width);
+    int height = Math.Max(img1.Height, img2.Height);
+    Bitmap intermediateResult = new Bitmap(width, height);
 
+    switch (operation)
+    {
+        case ImageOperation.Sum:
+        case ImageOperation.Multiply:
+        case ImageOperation.Average:
+        case ImageOperation.Min:
+        case ImageOperation.Max:
+        case ImageOperation.Mask:
+            // Основные пиксельные операции
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
@@ -211,21 +279,14 @@ namespace CapybaraImageApp
                     switch (operation)
                     {
                         case ImageOperation.Sum:
-                        int newR = c1.R + c2.R;
-                        int newG = c1.G + c2.G;
-                        int newB = c1.B + c2.B;
-
-                        // Нормализация яркости
-                        newR = (int)(newR / 2.0);
-                        newG = (int)(newG / 2.0);
-                        newB = (int)(newB / 2.0);
-
-                        newColor = Color.FromArgb(
-                            Math.Min(newR, 255),
-                            Math.Min(newG, 255),
-                            Math.Min(newB, 255)
-                        );
-                        break;
+                            int newR = (c1.R + c2.R) / 2;
+                            int newG = (c1.G + c2.G) / 2;
+                            int newB = (c1.B + c2.B) / 2;
+                            newColor = Color.FromArgb(
+                                Math.Min(newR, 255),
+                                Math.Min(newG, 255),
+                                Math.Min(newB, 255));
+                            break;
                         case ImageOperation.Multiply:
                             newColor = Color.FromArgb(
                                 (c1.R * c2.R) / 255,
@@ -257,11 +318,52 @@ namespace CapybaraImageApp
                             newColor = c1;
                             break;
                     }
-                    result.SetPixel(x, y, newColor);
+
+                    intermediateResult.SetPixel(x, y, newColor);
                 }
             }
-            return result;
-        }
+            return intermediateResult;
+
+        case ImageOperation.Median:
+            // Выполняем операцию над изображениями (например, сложение)
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    Color c1 = img1.GetPixel(x % img1.Width, y % img1.Height);
+                    Color c2 = img2.GetPixel(x % img2.Width, y % img2.Height);
+                    Color avg = Color.FromArgb(
+                        (c1.R + c2.R) / 2,
+                        (c1.G + c2.G) / 2,
+                        (c1.B + c2.B) / 2);
+                    intermediateResult.SetPixel(x, y, avg);
+                }
+            }
+            int windowSize = (int)numWindowSize.Value | 1;
+            return ApplyMedianFilter(intermediateResult, windowSize);
+
+        case ImageOperation.Gaussian:
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    Color c1 = img1.GetPixel(x % img1.Width, y % img1.Height);
+                    Color c2 = img2.GetPixel(x % img2.Width, y % img2.Height);
+                    Color avg = Color.FromArgb(
+                        (c1.R + c2.R) / 2,
+                        (c1.G + c2.G) / 2,
+                        (c1.B + c2.B) / 2);
+                    intermediateResult.SetPixel(x, y, avg);
+                }
+            }
+            return ApplyGaussianBlur(intermediateResult, sigma: 3.0, kernelSize: 13);
+
+        default:
+            return img1;
+    }
+}
+
+
 
         private Color ApplyMask(Color pixel, Color mask)
         {
@@ -440,6 +542,307 @@ namespace CapybaraImageApp
 
             return result;
         }
+
+        private Bitmap BradleyThresholding(Bitmap img, int S, double threshold)
+        {
+            int width = img.Width;
+            int height = img.Height;
+            Bitmap result = new Bitmap(width, height);
+            int[,] integralImage = new int[width, height];
+
+            // Заполняем суммированную матрицу
+            for (int y = 0; y < height; y++)
+            {
+                int sum = 0;
+                for (int x = 0; x < width; x++)
+                {
+                    Color pixel = img.GetPixel(x, y);
+                    int brightness = (int)(0.299 * pixel.R + 0.587 * pixel.G + 0.114 * pixel.B);
+                    sum += brightness;
+                    integralImage[x, y] = sum + (y > 0 ? integralImage[x, y - 1] : 0);
+                }
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int x1 = Math.Max(x - S / 2, 0);
+                    int x2 = Math.Min(x + S / 2, width - 1);
+                    int y1 = Math.Max(y - S / 2, 0);
+                    int y2 = Math.Min(y + S / 2, height - 1);
+
+                    int count = (x2 - x1) * (y2 - y1);
+                    int sum = integralImage[x2, y2] - (x1 > 0 ? integralImage[x1 - 1, y2] : 0)
+                                                    - (y1 > 0 ? integralImage[x2, y1 - 1] : 0)
+                              + (x1 > 0 && y1 > 0 ? integralImage[x1 - 1, y1 - 1] : 0);
+
+                    int brightness = (int)(0.299 * img.GetPixel(x, y).R + 0.587 * img.GetPixel(x, y).G + 0.114 * img.GetPixel(x, y).B);
+                    if (brightness * count < sum * threshold)
+                        result.SetPixel(x, y, Color.Black);
+                    else
+                        result.SetPixel(x, y, Color.White);
+                }
+            }
+
+            return result;
+        }
+        
+        
+        private void BtnBinarize_Click(object sender, EventArgs e)
+        {
+            if (pictureBoxResult.Image == null)
+            {
+                MessageBox.Show("Нет изображения для бинаризации.");
+                return;
+            }
+
+            Bitmap inputImage = new Bitmap(pictureBoxResult.Image);
+    
+            int S = (int)(Math.Max(inputImage.Width, inputImage.Height) * (numWindowSize.Value / 100));
+            double threshold = (double)numThreshold.Value;
+    
+            pictureBoxResult.Image = BradleyThresholding(inputImage, S, threshold);
+        }
+
+        /*private Bitmap ApplyMedianFilter(Bitmap source, int windowSize)
+        {
+            int radius = windowSize / 2;
+            Bitmap result = new Bitmap(source.Width, source.Height);
+
+            for (int y = 0; y < source.Height; y++)
+            {
+                for (int x = 0; x < source.Width; x++)
+                {
+                    List<byte> rList = new List<byte>();
+                    List<byte> gList = new List<byte>();
+                    List<byte> bList = new List<byte>();
+
+                    for (int dy = -radius; dy <= radius; dy++)
+                    {
+                        for (int dx = -radius; dx <= radius; dx++)
+                        {
+                            int px = Reflect(x + dx, source.Width);
+                            int py = Reflect(y + dy, source.Height);
+                            Color pixel = source.GetPixel(px, py);
+
+                            rList.Add(pixel.R);
+                            gList.Add(pixel.G);
+                            bList.Add(pixel.B);
+                        }
+                    }
+
+                    rList.Sort();
+                    gList.Sort();
+                    bList.Sort();
+
+                    int mid = rList.Count / 2;
+                    Color median = Color.FromArgb(rList[mid], gList[mid], bList[mid]);
+                    result.SetPixel(x, y, median);
+                }
+            }
+
+            return result;
+        }*/
+        
+        private Bitmap ApplyMedianFilter(Bitmap source, int windowSize)
+        {
+            int radius = windowSize / 2;
+            int width = source.Width;
+            int height = source.Height;
+
+            Bitmap result = new Bitmap(width, height);
+
+            BitmapData srcData = source.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+            BitmapData dstData = result.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+            int stride = srcData.Stride;
+            int bytes = stride * height;
+            byte[] srcBuffer = new byte[bytes];
+            byte[] dstBuffer = new byte[bytes];
+
+            Marshal.Copy(srcData.Scan0, srcBuffer, 0, bytes);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    List<byte> rList = new List<byte>();
+                    List<byte> gList = new List<byte>();
+                    List<byte> bList = new List<byte>();
+
+                    for (int dy = -radius; dy <= radius; dy++)
+                    {
+                        int py = Math.Clamp(y + dy, 0, height - 1);
+
+                        for (int dx = -radius; dx <= radius; dx++)
+                        {
+                            int px = Math.Clamp(x + dx, 0, width - 1);
+                            int index = py * stride + px * 3;
+
+                            bList.Add(srcBuffer[index]);
+                            gList.Add(srcBuffer[index + 1]);
+                            rList.Add(srcBuffer[index + 2]);
+                        }
+                    }
+
+                    rList.Sort();
+                    gList.Sort();
+                    bList.Sort();
+                    int mid = rList.Count / 2;
+
+                    int dstIndex = y * stride + x * 3;
+                    dstBuffer[dstIndex] = bList[mid];
+                    dstBuffer[dstIndex + 1] = gList[mid];
+                    dstBuffer[dstIndex + 2] = rList[mid];
+                }
+            }
+
+            Marshal.Copy(dstBuffer, 0, dstData.Scan0, bytes);
+            source.UnlockBits(srcData);
+            result.UnlockBits(dstData);
+            return result;
+        }
+
+        private int Reflect(int i, int max)
+        {
+            if (i < 0) return -i;
+            if (i >= max) return max - (i - max + 1);
+            return i;
+        }
+        
+        /*private Bitmap ApplyGaussianBlur(Bitmap source, double sigma, int kernelSize)
+        {
+            float[,] kernel = CreateGaussianKernel(kernelSize, sigma);
+            int radius = kernelSize / 2;
+            Bitmap result = new Bitmap(source.Width, source.Height);
+
+            for (int y = 0; y < source.Height; y++)
+            {
+                for (int x = 0; x < source.Width; x++)
+                {
+                    float r = 0, g = 0, b = 0;
+
+                    for (int ky = -radius; ky <= radius; ky++)
+                    {
+                        for (int kx = -radius; kx <= radius; kx++)
+                        {
+                            int px = Reflect(x + kx, source.Width);
+                            int py = Reflect(y + ky, source.Height);
+
+                            Color color = source.GetPixel(px, py);
+                            float k = kernel[kx + radius, ky + radius];
+
+                            r += color.R * k;
+                            g += color.G * k;
+                            b += color.B * k;
+                        }
+                    }
+
+                    Color blurred = Color.FromArgb(
+                        Math.Clamp((int)r, 0, 255),
+                        Math.Clamp((int)g, 0, 255),
+                        Math.Clamp((int)b, 0, 255)
+                    );
+                    result.SetPixel(x, y, blurred);
+                }
+            }
+
+            return result;
+        }*/
+        
+        private Bitmap ApplyGaussianBlur(Bitmap source, double sigma, int kernelSize)
+{
+    int width = source.Width;
+    int height = source.Height;
+    int radius = kernelSize / 2;
+    float[,] kernel = CreateGaussianKernel(kernelSize, sigma);
+    
+    Bitmap result = new Bitmap(width, height);
+
+    // Быстрый доступ к байтам
+    BitmapData srcData = source.LockBits(
+        new Rectangle(0, 0, width, height),
+        ImageLockMode.ReadOnly,
+        PixelFormat.Format24bppRgb);
+
+    BitmapData dstData = result.LockBits(
+        new Rectangle(0, 0, width, height),
+        ImageLockMode.WriteOnly,
+        PixelFormat.Format24bppRgb);
+
+    int stride = srcData.Stride;
+    IntPtr srcScan0 = srcData.Scan0;
+    IntPtr dstScan0 = dstData.Scan0;
+
+    unsafe
+    {
+        byte* srcPtr = (byte*)srcScan0;
+        byte* dstPtr = (byte*)dstScan0;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float sumR = 0, sumG = 0, sumB = 0;
+
+                for (int ky = -radius; ky <= radius; ky++)
+                {
+                    int py = Math.Clamp(y + ky, 0, height - 1);
+
+                    for (int kx = -radius; kx <= radius; kx++)
+                    {
+                        int px = Math.Clamp(x + kx, 0, width - 1);
+                        float k = kernel[kx + radius, ky + radius];
+
+                        byte* pixel = srcPtr + py * stride + px * 3;
+
+                        sumB += pixel[0] * k;
+                        sumG += pixel[1] * k;
+                        sumR += pixel[2] * k;
+                    }
+                }
+
+                byte* resultPixel = dstPtr + y * stride + x * 3;
+                resultPixel[0] = (byte)Math.Clamp((int)sumB, 0, 255);
+                resultPixel[1] = (byte)Math.Clamp((int)sumG, 0, 255);
+                resultPixel[2] = (byte)Math.Clamp((int)sumR, 0, 255);
+            }
+        }
+    }
+
+    source.UnlockBits(srcData);
+    result.UnlockBits(dstData);
+    return result;
+}
+
+        private float[,] CreateGaussianKernel(int size, double sigma)
+        {
+            float[,] kernel = new float[size, size];
+            int radius = size / 2;
+            double sigma2 = 2 * sigma * sigma;
+            double sum = 0;
+
+            for (int y = -radius; y <= radius; y++)
+            {
+                for (int x = -radius; x <= radius; x++)
+                {
+                    double value = Math.Exp(-(x * x + y * y) / sigma2);
+                    kernel[x + radius, y + radius] = (float)value;
+                    sum += value;
+                }
+            }
+
+            // Нормализация
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+                kernel[x, y] /= (float)sum;
+
+            return kernel;
+        }
+
 
     }
 }
